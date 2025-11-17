@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RobotStats Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .metric-card.success {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        .metric-card.warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .metric-card.info {
+            background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
+        }
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .metric-label {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        .recent-runs {
+            margin-top: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        .status-success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .status-failed {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .status-running {
+            color: #ffc107;
+            font-weight: bold;
+        }
+        .last-updated {
+            text-align: right;
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 RobotStats Dashboard</h1>
+        
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Всего запусков</div>
+                <div class="metric-value" id="totalRuns">0</div>
+            </div>
+            <div class="metric-card success">
+                <div class="metric-label">Успешных</div>
+                <div class="metric-value" id="successfulRuns">0</div>
+            </div>
+            <div class="metric-card warning">
+                <div class="metric-label">С ошибками</div>
+                <div class="metric-value" id="failedRuns">0</div>
+            </div>
+            <div class="metric-card info">
+                <div class="metric-label">Сэкономлено времени</div>
+                <div class="metric-value" id="timeSaved">0</div>
+                <div class="metric-label">минут</div>
+            </div>
+        </div>
+
+        <div class="recent-runs">
+            <h2>Последние запуски</h2>
+            <table id="recentRunsTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Робот</th>
+                        <th>Время начала</th>
+                        <th>Статус</th>
+                        <th>Сэкономлено (мин)</th>
+                        <th>Ошибка</th>
+                    </tr>
+                </thead>
+                <tbody id="recentRunsBody">
+                    
+                </tbody>
+            </table>
+        </div>
+
+        <div class="last-updated" id="lastUpdated">
+            Последнее обновление: никогда
+        </div>
+    </div>
+
+    <script>
+        async function loadMetrics() {
+            try {
+               const response = await fetch('/api/dashboard');
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                const data = await response.json();
+                
+                // Обновляем основные метрики
+                document.getElementById('totalRuns').textContent = data.totalRuns;
+                document.getElementById('successfulRuns').textContent = data.successfulRuns;
+                document.getElementById('failedRuns').textContent = data.failedRuns;
+                document.getElementById('timeSaved').textContent = data.totalTimeSavedMinutes;
+                
+                // Обновляем таблицу последних запусков
+                const tbody = document.getElementById('recentRunsBody');
+                tbody.innerHTML = '';
+                
+                data.recentRuns.forEach(run => {
+                    const row = document.createElement('tr');
+                    
+                    // Форматируем дату
+                    const startTime = new Date(run.startTime).toLocaleString('ru-RU');
+                    
+                    // Определяем класс статуса
+                    let statusClass = '';
+                    let statusText = '';
+                    switch(run.status) {
+                        case 'Success':
+                            statusClass = 'status-success';
+                            statusText = '✅ Успех';
+                            break;
+                        case 'Failed':
+                            statusClass = 'status-failed';
+                            statusText = '❌ Ошибка';
+                            break;
+                        case 'Running':
+                            statusClass = 'status-running';
+                            statusText = '🔄 В процессе';
+                            break;
+                        default:
+                            statusText = run.status;
+                    }
+                    
+                    row.innerHTML = `
+                        <td>${run.id}</td>
+                        <td>${run.robotName}</td>
+                        <td>${startTime}</td>
+                        <td class="${statusClass}">${statusText}</td>
+                        <td>${run.timeSavedMinutes}</td>
+                        <td>${run.errorMessage || '-'}</td>
+                    `;
+                    
+                    tbody.appendChild(row);
+                });
+                
+                // Обновляем время последнего обновления
+                document.getElementById('lastUpdated').textContent = 
+                    `Последнее обновление: ${new Date().toLocaleString('ru-RU')}`;
+                
+            } catch (error) {
+                console.error('Error loading metrics:', error);
+                document.getElementById('recentRunsBody').innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: #dc3545;">
+                            Ошибка загрузки данных: ${error.message}
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Обновляем каждые 5 секунд
+        setInterval(loadMetrics, 5000);
+        
+        // Загружаем сразу при открытии
+        loadMetrics();
+    </script>
+</body>
+</html>
